@@ -1,0 +1,56 @@
+# =========================================
+# 1. Environment Variables & Secrets
+# =========================================
+.env
+.env.*
+!.env.example
+
+# =========================================
+# 2. Frontend (React / Vite / Node)
+# =========================================
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/build/
+frontend/.eslintcache
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/pnpm-debug.log*
+
+# =========================================
+# 3. Backend (Go)
+# =========================================
+# Compiled binaries
+backend/api_server
+backend/*.exe
+backend/*.exe~
+backend/*.dll
+backend/*.so
+backend/*.dylib
+
+# Go workspace and test/profiling files
+backend/vendor/
+backend/go.work
+backend/go.work.sum
+backend/coverage.out
+backend/c.out
+
+# =========================================
+# 4. OS & IDE Configuration
+# =========================================
+# Mac
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
