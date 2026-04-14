@@ -44,6 +44,7 @@ func main() {
 	authH := &handlers.AuthHandler{DB: db, JWTSecret: jwtSecret}
 	projH := &handlers.ProjectHandler{DB: db}
 	taskH := &handlers.TaskHandler{DB: db}
+	userH := &handlers.UserHandler{DB: db}
 
 	mux := http.NewServeMux()
 
@@ -67,6 +68,8 @@ func main() {
 	protected.HandleFunc("POST /projects/{id}/tasks", taskH.Create)
 	protected.HandleFunc("PATCH /tasks/{id}", taskH.Update)
 	protected.HandleFunc("DELETE /tasks/{id}", taskH.Delete)
+
+	protected.HandleFunc("GET /users", userH.List)
 
 	mux.Handle("/", middleware.Auth(jwtSecret, protected))
 

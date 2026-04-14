@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
+
+	"github.com/google/uuid"
 
 	"taskflow-api/internal/models"
 	"taskflow-api/internal/utils"
@@ -16,19 +19,19 @@ type TaskHandler struct {
 }
 
 type TaskCreateInput struct {
-	Title       string  `json:"title" example:"Design Database Schema"`
-	Description string  `json:"description" example:"Create the ERD for the new feature"`
-	AssigneeID  *string `json:"assignee_id,omitempty" example:"uuid-of-user"`
-	DueDate     *string `json:"due_date,omitempty" example:"2025-12-31"`
+	Title       string     `json:"title" example:"Design Database Schema"`
+	Description string     `json:"description" example:"Create the ERD for the new feature"`
+	AssigneeID  *uuid.UUID `json:"assignee_id,omitempty" example:"uuid-of-user"`
+	DueDate     *time.Time `json:"due_date,omitempty" example:"2025-12-31"`
 }
 
 type TaskUpdateInput struct {
-	Title       *string `json:"title,omitempty"`
-	Description *string `json:"description,omitempty"`
-	Status      *string `json:"status,omitempty" enums:"todo,in_progress,done"`
-	Priority    *string `json:"priority,omitempty" enums:"low,medium,high"`
-	AssigneeID  *string `json:"assignee_id,omitempty"`
-	DueDate     *string `json:"due_date,omitempty"`
+	Title       *string    `json:"title,omitempty"`
+	Description *string    `json:"description,omitempty"`
+	Status      *string    `json:"status,omitempty" enums:"todo,in_progress,done"`
+	Priority    *string    `json:"priority,omitempty" enums:"low,medium,high"`
+	AssigneeID  *uuid.UUID `json:"assignee_id,omitempty"`
+	DueDate     *time.Time `json:"due_date,omitempty"`
 }
 
 // List godoc
@@ -124,7 +127,7 @@ func (h *TaskHandler) Create(w http.ResponseWriter, r *http.Request) {
 		utils.WriteError(w, http.StatusInternalServerError, "db error", nil)
 		return
 	}
-	input.ProjectID = projectID
+	input.ProjectID = uuid.MustParse(projectID)
 	utils.WriteJSON(w, http.StatusCreated, input)
 }
 
