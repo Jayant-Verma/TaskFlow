@@ -31,11 +31,10 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "5173:80" # Maps localhost:5173 to Nginx port 80
+      - "5173:80"
     depends_on:
-      - api # Wait for Go API to start
+      - api
     environment:
-      # Pass the backend URL to Vite at build time
       - VITE_API_URL=http://localhost:8080
 
 volumes:

@@ -30,6 +30,9 @@ import {
   Select,
   Textarea,
   Flex,
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
 } from '@chakra-ui/react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
@@ -38,6 +41,8 @@ import * as z from 'zod';
 import { api } from '@/api/client';
 import { Task, User as UserType } from '@/types';
 import { Plus, Calendar, User } from 'lucide-react';
+import { ProjectStatsHeader } from './ProjectStatsHeader';
+import { Link as RouterLink } from 'react-router-dom';
 
 const COLUMNS = [
   { id: 'todo', label: 'To Do', color: 'gray' },
@@ -209,6 +214,19 @@ export const KanbanBoard = ({ projectId }: { projectId: string }) => {
 
   return (
     <Box>
+      <Box mb={6}>
+        <Breadcrumb fontSize="sm" color="gray.500">
+          <BreadcrumbItem>
+            <BreadcrumbLink as={RouterLink} to="/projects">
+              Projects
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbItem isCurrentPage>
+            <BreadcrumbLink fontWeight="bold">Board</BreadcrumbLink>
+          </BreadcrumbItem>
+        </Breadcrumb>
+      </Box>
+      <ProjectStatsHeader projectId={projectId} />
       {/* FILTER BAR & ACTION */}
       <Flex
         justify="space-between"
