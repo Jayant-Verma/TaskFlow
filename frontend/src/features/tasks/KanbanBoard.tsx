@@ -43,6 +43,7 @@ import { Task, User as UserType } from '@/types';
 import { Plus, Calendar, User } from 'lucide-react';
 import { ProjectStatsHeader } from './ProjectStatsHeader';
 import { Link as RouterLink } from 'react-router-dom';
+import { ProjectActions } from '../projects/ProjectActions';
 
 const COLUMNS = [
   { id: 'todo', label: 'To Do', color: 'gray' },
@@ -146,6 +147,16 @@ export const KanbanBoard = ({ projectId }: { projectId: string }) => {
       queryClient.invalidateQueries({ queryKey: ['tasks', projectId] }),
   });
 
+  const { mutate: deleteTask } = useMutation({
+    mutationFn: async (taskId: string) => await api.delete(`/tasks/${taskId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
+      toast({ title: 'Task deleted.', status: 'info' });
+      handleCloseModal();
+    },
+    onError: () => toast({ title: 'Failed to delete task', status: 'error' }),
+  });
+
   // --- Handlers ---
   const handleOpenCreate = () => {
     setEditingTask(null);
@@ -214,7 +225,13 @@ export const KanbanBoard = ({ projectId }: { projectId: string }) => {
 
   return (
     <Box>
-      <Box mb={6}>
+      <Flex
+        justify="space-between"
+        align="center"
+        mb={6}
+        flexWrap="wrap"
+        gap={4}
+      >
         <Breadcrumb fontSize="sm" color="gray.500">
           <BreadcrumbItem>
             <BreadcrumbLink as={RouterLink} to="/projects">
@@ -225,7 +242,8 @@ export const KanbanBoard = ({ projectId }: { projectId: string }) => {
             <BreadcrumbLink fontWeight="bold">Board</BreadcrumbLink>
           </BreadcrumbItem>
         </Breadcrumb>
-      </Box>
+        <ProjectActions projectId={projectId} />
+      </Flex>
       <ProjectStatsHeader projectId={projectId} />
       {/* FILTER BAR & ACTION */}
       <Flex
@@ -497,18 +515,38 @@ export const KanbanBoard = ({ projectId }: { projectId: string }) => {
               </FormControl>
             </VStack>
           </ModalBody>
-          <Box px={6} pb={6} display="flex" justifyContent="flex-end" gap={3}>
-            <Button variant="ghost" onClick={handleCloseModal}>
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              form="task-form"
-              colorScheme="blue"
-              isLoading={isSubmitting}
-            >
-              {editingTask ? 'Save Changes' : 'Create Task'}
-            </Button>
+          <Box
+            px={6}
+            pb={6}
+            display="flex"
+            justifyContent="space-between"
+            alignItems="center"
+          >
+            {editingTask ? (
+              <Button
+                colorScheme="red"
+                variant="ghost"
+                onClick={() => deleteTask(editingTask.id)}
+              >
+                Delete Task
+              </Button>
+            ) : (
+              <Box />
+            )}
+
+            <HStack spacing={3}>
+              <Button variant="ghost" onClick={handleCloseModal}>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                form="task-form"
+                colorScheme="blue"
+                isLoading={isSubmitting}
+              >
+                {editingTask ? 'Save Changes' : 'Create Task'}
+              </Button>
+            </HStack>
           </Box>
         </ModalContent>
       </Modal>
