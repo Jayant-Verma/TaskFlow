@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"database/sql"
-	"encoding/json"
 	"net/http"
 	"time"
 
@@ -41,8 +40,7 @@ type LoginInput struct {
 // @Router       /auth/register [post]
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	var input RegisterInput
-	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		utils.WriteError(w, http.StatusBadRequest, "invalid payload", nil)
+	if !utils.DecodeJSON(w, r, &input) {
 		return
 	}
 
@@ -87,7 +85,21 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 // @Router       /auth/login [post]
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var input LoginInput
-	json.NewDecoder(r.Body).Decode(&input)
+	if !utils.DecodeJSON(w, r, &input) {
+		return
+	}
+
+	fields := make(map[string]string)
+	if input.Email == "" {
+		fields["email"] = "is required"
+	}
+	if input.Password == "" {
+		fields["password"] = "is required"
+	}
+	if len(fields) > 0 {
+		utils.WriteError(w, http.StatusBadRequest, "validation failed", fields)
+		return
+	}
 
 	var id, hash string
 	err := h.DB.QueryRowContext(r.Context(), "SELECT id, password FROM users WHERE email = $1", input.Email).Scan(&id, &hash)

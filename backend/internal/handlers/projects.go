@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"database/sql"
-	"encoding/json"
 	"net/http"
 
 	"taskflow-api/internal/models"
@@ -67,7 +66,9 @@ func (h *ProjectHandler) List(w http.ResponseWriter, r *http.Request) {
 func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 	claims := r.Context().Value(models.UserContextKey).(*models.JWTClaims)
 	var input ProjectInput
-	json.NewDecoder(r.Body).Decode(&input)
+	if !utils.DecodeJSON(w, r, &input) {
+		return
+	}
 
 	if input.Name == "" {
 		utils.WriteError(w, http.StatusBadRequest, "validation failed", map[string]string{"name": "is required"})
@@ -138,10 +139,11 @@ func (h *ProjectHandler) Update(w http.ResponseWriter, r *http.Request) {
 	claims := r.Context().Value(models.UserContextKey).(*models.JWTClaims)
 
 	var input ProjectInput
-	json.NewDecoder(r.Body).Decode(&input)
+	if !utils.DecodeJSON(w, r, &input) {
+		return
+	}
 
 	res, err := h.DB.ExecContext(r.Context(), "UPDATE projects SET name = COALESCE(NULLIF($1, ''), name), description = COALESCE(NULLIF($2, ''), description) WHERE id = $3 AND owner_id = $4", input.Name, input.Description, id, claims.UserID)
-
 	if err != nil {
 		utils.WriteError(w, http.StatusInternalServerError, "db error", nil)
 		return

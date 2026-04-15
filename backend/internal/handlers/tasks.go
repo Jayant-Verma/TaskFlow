@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -21,6 +20,7 @@ type TaskHandler struct {
 type TaskCreateInput struct {
 	Title       string     `json:"title" example:"Design Database Schema"`
 	Description string     `json:"description" example:"Create the ERD for the new feature"`
+	Priority    string     `json:"priority" example:"medium" enums:"low,medium,high"`
 	AssigneeID  *uuid.UUID `json:"assignee_id,omitempty" example:"uuid-of-user"`
 	DueDate     *time.Time `json:"due_date,omitempty" example:"2025-12-31"`
 }
@@ -32,6 +32,26 @@ type TaskUpdateInput struct {
 	Priority    *string    `json:"priority,omitempty" enums:"low,medium,high"`
 	AssigneeID  *uuid.UUID `json:"assignee_id,omitempty"`
 	DueDate     *time.Time `json:"due_date,omitempty"`
+}
+
+var validTaskStatuses = map[string]bool{
+	"todo":        true,
+	"in_progress": true,
+	"done":        true,
+}
+
+var validTaskPriorities = map[string]bool{
+	"low":    true,
+	"medium": true,
+	"high":   true,
+}
+
+func isValidStatus(value string) bool {
+	return validTaskStatuses[value]
+}
+
+func isValidPriority(value string) bool {
+	return validTaskPriorities[value]
 }
 
 // List godoc
@@ -56,11 +76,19 @@ func (h *TaskHandler) List(w http.ResponseWriter, r *http.Request) {
 	argID := 2
 
 	if s := r.URL.Query().Get("status"); s != "" {
+		if !isValidStatus(s) {
+			utils.WriteError(w, http.StatusBadRequest, "validation failed", map[string]string{"status": "invalid value"})
+			return
+		}
 		query += fmt.Sprintf(" AND status = $%d", argID)
 		args = append(args, s)
 		argID++
 	}
 	if as := r.URL.Query().Get("assignee"); as != "" {
+		if _, err := uuid.Parse(as); err != nil {
+			utils.WriteError(w, http.StatusBadRequest, "validation failed", map[string]string{"assignee": "must be a valid UUID"})
+			return
+		}
 		query += fmt.Sprintf(" AND assignee_id = $%d", argID)
 		args = append(args, as)
 		argID++
@@ -68,10 +96,20 @@ func (h *TaskHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	limit := 50
 	offset := 0
-	if l, err := strconv.Atoi(r.URL.Query().Get("limit")); err == nil {
+	if lStr := r.URL.Query().Get("limit"); lStr != "" {
+		l, err := strconv.Atoi(lStr)
+		if err != nil || l <= 0 {
+			utils.WriteError(w, http.StatusBadRequest, "validation failed", map[string]string{"limit": "must be a positive integer"})
+			return
+		}
 		limit = l
 	}
-	if p, err := strconv.Atoi(r.URL.Query().Get("page")); err == nil && p > 0 {
+	if pStr := r.URL.Query().Get("page"); pStr != "" {
+		p, err := strconv.Atoi(pStr)
+		if err != nil || p <= 0 {
+			utils.WriteError(w, http.StatusBadRequest, "validation failed", map[string]string{"page": "must be a positive integer"})
+			return
+		}
 		offset = (p - 1) * limit
 	}
 
@@ -110,25 +148,34 @@ func (h *TaskHandler) Create(w http.ResponseWriter, r *http.Request) {
 	projectID := r.PathValue("id")
 	claims := r.Context().Value(models.UserContextKey).(*models.JWTClaims)
 
-	var input models.Task
-	json.NewDecoder(r.Body).Decode(&input)
+	var input TaskCreateInput
+	if !utils.DecodeJSON(w, r, &input) {
+		return
+	}
 
 	if input.Title == "" {
 		utils.WriteError(w, http.StatusBadRequest, "validation failed", map[string]string{"title": "is required"})
 		return
 	}
 
+	task := models.Task{
+		Title:       input.Title,
+		Description: input.Description,
+		ProjectID:   uuid.MustParse(projectID),
+		AssigneeID:  input.AssigneeID,
+		DueDate:     input.DueDate,
+	}
+
 	err := h.DB.QueryRowContext(r.Context(),
 		`INSERT INTO tasks (title, description, project_id, creator_id, assignee_id, due_date) 
 		 VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-		input.Title, input.Description, projectID, claims.UserID, input.AssigneeID, input.DueDate).Scan(&input.ID)
+		task.Title, task.Description, projectID, claims.UserID, task.AssigneeID, task.DueDate).Scan(&task.ID)
 
 	if err != nil {
 		utils.WriteError(w, http.StatusInternalServerError, "db error", nil)
 		return
 	}
-	input.ProjectID = uuid.MustParse(projectID)
-	utils.WriteJSON(w, http.StatusCreated, input)
+	utils.WriteJSON(w, http.StatusCreated, task)
 }
 
 // Update godoc
@@ -145,11 +192,8 @@ func (h *TaskHandler) Create(w http.ResponseWriter, r *http.Request) {
 // @Router       /tasks/{id} [patch]
 func (h *TaskHandler) Update(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	var input map[string]any
-	json.NewDecoder(r.Body).Decode(&input)
-
-	if len(input) == 0 {
-		utils.WriteJSON(w, http.StatusOK, map[string]string{"status": "no changes provided"})
+	var input TaskUpdateInput
+	if !utils.DecodeJSON(w, r, &input) {
 		return
 	}
 
@@ -157,11 +201,54 @@ func (h *TaskHandler) Update(w http.ResponseWriter, r *http.Request) {
 	args := []any{}
 	argID := 1
 
-	for k, v := range input {
-		query += fmt.Sprintf(", %s = $%d", k, argID)
-		args = append(args, v)
+	if input.Title != nil {
+		if *input.Title == "" {
+			utils.WriteError(w, http.StatusBadRequest, "validation failed", map[string]string{"title": "cannot be empty"})
+			return
+		}
+		query += fmt.Sprintf(", title = $%d", argID)
+		args = append(args, *input.Title)
 		argID++
 	}
+	if input.Description != nil {
+		query += fmt.Sprintf(", description = $%d", argID)
+		args = append(args, *input.Description)
+		argID++
+	}
+	if input.Status != nil {
+		if !isValidStatus(*input.Status) {
+			utils.WriteError(w, http.StatusBadRequest, "validation failed", map[string]string{"status": "invalid value"})
+			return
+		}
+		query += fmt.Sprintf(", status = $%d", argID)
+		args = append(args, *input.Status)
+		argID++
+	}
+	if input.Priority != nil {
+		if !isValidPriority(*input.Priority) {
+			utils.WriteError(w, http.StatusBadRequest, "validation failed", map[string]string{"priority": "invalid value"})
+			return
+		}
+		query += fmt.Sprintf(", priority = $%d", argID)
+		args = append(args, *input.Priority)
+		argID++
+	}
+	if input.AssigneeID != nil {
+		query += fmt.Sprintf(", assignee_id = $%d", argID)
+		args = append(args, input.AssigneeID)
+		argID++
+	}
+	if input.DueDate != nil {
+		query += fmt.Sprintf(", due_date = $%d", argID)
+		args = append(args, input.DueDate)
+		argID++
+	}
+
+	if len(args) == 0 {
+		utils.WriteError(w, http.StatusBadRequest, "validation failed", map[string]string{"body": "no fields to update"})
+		return
+	}
+
 	query += fmt.Sprintf(" WHERE id = $%d", argID)
 	args = append(args, id)
 
